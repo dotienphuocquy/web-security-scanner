@@ -12,17 +12,23 @@ from colorama import Fore, Style
 from utils.http_client import HTTPClient
 from utils.crawler import WebCrawler
 from payloads.sql_payloads import SQLPayloads
+from scanners.db_fingerprint import DatabaseFingerprint
+from scanners.blind_sqli_extractor import BlindSQLInjectionExtractor
+from scanners.error_based_extractor import ErrorBasedExtractor
 from config import SQLI_DETECTION_TIMEOUT, SQLI_MAX_PAYLOADS
 
 
 class SQLInjectionScanner:
     """SQL Injection vulnerability scanner"""
     
-    def __init__(self, url):
+    def __init__(self, url, enable_extraction=False):
         self.url = url
         self.client = HTTPClient()
         self.vulnerabilities = []
         self.tested_params = set()
+        self.enable_extraction = enable_extraction
+        self.detected_db = None
+        self.db_functions = None
     
     def scan(self):
         """Main scan function"""
@@ -211,6 +217,12 @@ class SQLInjectionScanner:
                     evidence="SQL error detected in response"
                 )
                 print(f"{Fore.GREEN}    [✓] Vulnerable to Error-based SQLi!{Style.RESET_ALL}")
+                
+                # Perform data extraction if enabled
+                if self.enable_extraction and not self.detected_db:
+                    print(f"{Fore.YELLOW}[!] Attempting data extraction via Error-based SQLi...{Style.RESET_ALL}")
+                    self._exploit_error_based(param_name, param_value, params, method='GET')
+                
                 return True
         
         # Also test numeric injection for id parameters
@@ -315,6 +327,11 @@ class SQLInjectionScanner:
                     evidence=f"Response length differs: True={true_length}, False={false_length}"
                 )
                 print(f"{Fore.GREEN}    [✓] Vulnerable to Boolean-based Blind SQLi!{Style.RESET_ALL}")
+                
+                # Perform data extraction if enabled
+                if self.enable_extraction:
+                    self._exploit_blind_sqli(param_name, param_value, params, method='GET')
+                
                 return True
         
         return False
@@ -360,6 +377,12 @@ class SQLInjectionScanner:
                     evidence="SQL error detected in response"
                 )
                 print(f"{Fore.GREEN}      [✓] Vulnerable to Error-based SQLi (POST)!{Style.RESET_ALL}")
+                
+                # Perform data extraction if enabled
+                if self.enable_extraction and not self.detected_db:
+                    print(f"{Fore.YELLOW}[!] Attempting data extraction via Error-based SQLi (POST)...{Style.RESET_ALL}")
+                    self._exploit_error_based_post(url, param_name, form_data, method='POST')
+                
                 return True
         
         return False
@@ -425,6 +448,174 @@ class SQLInjectionScanner:
             if re.search(indicator, response_text, re.IGNORECASE):
                 return True
         return False
+    
+    def _exploit_blind_sqli(self, param_name, param_value, params, method='GET'):
+        """Exploit Blind SQL Injection to extract data"""
+        print(f"\n{Fore.YELLOW}[!] Data Extraction Mode Enabled{Style.RESET_ALL}")
+        
+        # Step 1: Database Fingerprinting
+        if not self.detected_db:
+            self.detected_db, confidence = DatabaseFingerprint.detect_database(
+                self.client, self.url, param_name, param_value, method
+            )
+            
+            if self.detected_db:
+                self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
+            else:
+                print(f"{Fore.YELLOW}[!] Using default MySQL functions{Style.RESET_ALL}")
+                self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
+        
+        # Step 2: Data Extraction using Binary Search
+        print(f"\n{Fore.CYAN}[*] Starting data extraction...{Style.RESET_ALL}")
+        
+        try:
+            extractor = BlindSQLInjectionExtractor(
+                self.client, 
+                self.url, 
+                param_name, 
+                param_value, 
+                method, 
+                self.db_functions
+            )
+            
+            # Extract database info (PoC only)
+            extracted_data = extractor.dump_database_info()
+            
+            # Add to vulnerability evidence
+            if extracted_data:
+                evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
+                # Update last vulnerability with extracted data
+                if self.vulnerabilities:
+                    self.vulnerabilities[-1]['evidence'] += f"\n    Extracted Data: {evidence_str}"
+                    self.vulnerabilities[-1]['extracted_data'] = extracted_data
+        
+        except Exception as e:
+            print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
+    
+    def _exploit_error_based(self, param_name, param_value, params, method='GET'):
+        """Exploit Error-based SQL Injection to extract data"""
+        print(f"\n{Fore.YELLOW}[!] Error-Based Extraction Mode{Style.RESET_ALL}")
+        
+        # Step 1: Database Fingerprinting
+        if not self.detected_db:
+            self.detected_db, confidence = DatabaseFingerprint.detect_database(
+                self.client, self.url, param_name, param_value, method
+            )
+            
+            if self.detected_db:
+                self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
+                print(f"{Fore.GREEN}[✓] Detected: {self.detected_db}{Style.RESET_ALL}")
+            else:
+                self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
+        
+        # Step 2: Quick extraction
+        try:
+            extracted_data = ErrorBasedExtractor.quick_extract(
+                self.client, 
+                self.url, 
+                param_name,
+                method
+            )
+            
+            if extracted_data:
+                # Add database type
+                extracted_data['database_type'] = self.detected_db if self.detected_db else 'MySQL (default)'
+                
+                # Add to last vulnerability
+                if self.vulnerabilities:
+                    self.vulnerabilities[-1]['extracted_data'] = extracted_data
+                    evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
+                    self.vulnerabilities[-1]['evidence'] += f"\n    Extracted: {evidence_str}"
+        
+        except Exception as e:
+            print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
+    
+    def _exploit_error_based_post(self, url, param_name, form_data, method='POST'):
+        """Exploit Error-based SQL Injection (POST) to extract data"""
+        print(f"\n{Fore.YELLOW}[!] Error-Based Extraction Mode (POST){Style.RESET_ALL}")
+        
+        param_value = form_data.get(param_name, 'test')
+        
+        # Step 1: Database Fingerprinting
+        if not self.detected_db:
+            self.detected_db, confidence = DatabaseFingerprint.detect_database(
+                self.client, url, param_name, param_value, 'POST'
+            )
+            
+            if self.detected_db:
+                self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
+                print(f"{Fore.GREEN}[✓] Detected: {self.detected_db}{Style.RESET_ALL}")
+            else:
+                self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
+        
+        # Step 2: Quick extraction
+        try:
+            extracted_data = ErrorBasedExtractor.quick_extract(
+                self.client, 
+                url, 
+                param_name,
+                'POST'
+            )
+            
+            if extracted_data:
+                # Add database type
+                extracted_data['database_type'] = self.detected_db if self.detected_db else 'MySQL (default)'
+                
+                # Add to last vulnerability
+                if self.vulnerabilities:
+                    self.vulnerabilities[-1]['extracted_data'] = extracted_data
+                    evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
+                    self.vulnerabilities[-1]['evidence'] += f"\n    Extracted: {evidence_str}"
+        
+        except Exception as e:
+            print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
+    
+    def _exploit_blind_sqli_post(self, url, param_name, form_data, method='POST'):
+        """Exploit Blind SQL Injection from POST form"""
+        print(f"\n{Fore.YELLOW}[!] Data Extraction Mode Enabled{Style.RESET_ALL}")
+        
+        # Get a test value from form_data
+        param_value = form_data.get(param_name, 'test')
+        
+        # Step 1: Database Fingerprinting
+        if not self.detected_db:
+            # For POST, we need to adapt the fingerprinting
+            self.detected_db, confidence = DatabaseFingerprint.detect_database(
+                self.client, url, param_name, param_value, method='POST'
+            )
+            
+            if self.detected_db:
+                self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
+            else:
+                print(f"{Fore.YELLOW}[!] Using default MySQL functions{Style.RESET_ALL}")
+                self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
+        
+        # Step 2: Data Extraction
+        print(f"\n{Fore.CYAN}[*] Starting data extraction (POST method)...{Style.RESET_ALL}")
+        
+        try:
+            # Create a custom extractor for POST
+            extractor = BlindSQLInjectionExtractor(
+                self.client, 
+                url, 
+                param_name, 
+                param_value, 
+                'POST',
+                self.db_functions
+            )
+            
+            # Extract database info
+            extracted_data = extractor.dump_database_info()
+            
+            # Add to vulnerability evidence
+            if extracted_data:
+                evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
+                if self.vulnerabilities:
+                    self.vulnerabilities[-1]['evidence'] += f"\n    Extracted Data: {evidence_str}"
+                    self.vulnerabilities[-1]['extracted_data'] = extracted_data
+        
+        except Exception as e:
+            print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
     
     def _add_vulnerability(self, vuln_type, param, payload, method, evidence="", url=None):
         """Add vulnerability to results"""

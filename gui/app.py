@@ -32,6 +32,8 @@ def start_scan():
     data = request.get_json()
     url = data.get('url')
     scan_type = data.get('type', 'all')
+    enable_extraction = data.get('enable_extraction', False)
+    enable_context_detection = data.get('enable_context_detection', False)
     
     if not url:
         return jsonify({'error': 'URL is required'}), 400
@@ -47,13 +49,15 @@ def start_scan():
     }
     
     # Start scan in background thread
-    thread = threading.Thread(target=run_scan, args=(scan_id, url, scan_type))
+    thread = threading.Thread(target=run_scan, args=(scan_id, url, scan_type, enable_extraction, enable_context_detection))
     thread.daemon = True
     thread.start()
     
     return jsonify({
         'scan_id': scan_id,
-        'message': 'Scan started successfully'
+        'message': 'Scan started successfully',
+        'extraction_enabled': enable_extraction,
+        'context_detection_enabled': enable_context_detection
     })
 
 
@@ -81,36 +85,67 @@ def download_report(scan_id):
     if scan_id not in scan_results:
         return jsonify({'error': 'Results not found'}), 404
     
-    # Generate report
-    report_gen = ReportGenerator()
-    report_path = f"reports/{scan_id}_report.html"
+    # Get absolute path for reports directory
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    reports_dir = os.path.join(app_dir, 'reports')
+    os.makedirs(reports_dir, exist_ok=True)
     
-    # Create reports directory if not exists
-    os.makedirs('reports', exist_ok=True)
+    print(f"[Flask] App directory: {app_dir}")
+    print(f"[Flask] Reports directory: {reports_dir}")
+    print(f"[Flask] Scan ID: {scan_id}")
     
-    report_gen.generate(scan_results[scan_id]['vulnerabilities'], f"reports/{scan_id}_report")
+    # Generate report with absolute path
+    report_gen = ReportGenerator(report_dir=reports_dir)
     
-    return send_file(report_path, as_attachment=True)
+    try:
+        vulnerabilities = scan_results[scan_id]['vulnerabilities']
+        print(f"[Flask] Generating report for {len(vulnerabilities)} vulnerabilities")
+        
+        report_files = report_gen.generate(vulnerabilities, f"{scan_id}_report")
+        
+        print(f"[Flask] Report files generated:")
+        print(f"  - HTML: {report_files['html']}")
+        print(f"  - JSON: {report_files['json']}")
+        
+        # Verify file exists
+        html_path = report_files['html']
+        if not os.path.exists(html_path):
+            print(f"[Flask] ERROR: Report file not found: {html_path}")
+            # List files in reports directory
+            if os.path.exists(reports_dir):
+                files = os.listdir(reports_dir)
+                print(f"[Flask] Files in reports directory: {files}")
+            return jsonify({'error': 'Report generation failed'}), 500
+        
+        file_size = os.path.getsize(html_path)
+        print(f"[Flask] File exists, size: {file_size} bytes")
+        print(f"[Flask] Sending file: {html_path}")
+        
+        return send_file(html_path, as_attachment=True, download_name=f"{scan_id}_report.html")
+    
+    except Exception as e:
+        print(f"[ERROR] Report generation failed: {str(e)}")
+        return jsonify({'error': f'Report generation failed: {str(e)}'}), 500
 
 
-def run_scan(scan_id, url, scan_type):
+def run_scan(scan_id, url, scan_type, enable_extraction=False, enable_context_detection=False):
     """Run scan in background"""
     try:
         results = []
-        print(f"[GUI] Starting scan {scan_id} for {url} (type: {scan_type})")
+        print(f"\n{'='*60}")
+        print(f"[SCAN] Starting {scan_type.upper()} scan for {url}")
+        print(f"{'='*60}\n")
         
         # SQL Injection scan
         if scan_type in ['sqli', 'all']:
             scan_status[scan_id].update({
                 'status': 'running',
                 'progress': 25,
-                'message': 'Running SQL Injection scan...'
+                'message': 'Running SQL Injection scan...' + (' (with data extraction)' if enable_extraction else '')
             })
             
-            print(f"[GUI] Running SQL Injection scan...")
-            sqli_scanner = SQLInjectionScanner(url)
+            sqli_scanner = SQLInjectionScanner(url, enable_advanced=enable_extraction)
             sqli_results = sqli_scanner.scan()
-            print(f"[GUI] SQL Injection scan found {len(sqli_results)} vulnerabilities")
             results.extend(sqli_results)
         
         # XSS scan
@@ -118,27 +153,34 @@ def run_scan(scan_id, url, scan_type):
             scan_status[scan_id].update({
                 'status': 'running',
                 'progress': 60,
-                'message': 'Running XSS scan...'
+                'message': 'Running XSS scan...' + (' (with context detection)' if enable_context_detection else '')
             })
             
-            print(f"[GUI] Running XSS scan...")
-            xss_scanner = XSSScanner(url)
+            xss_scanner = XSSScanner(url, enable_context_detection=enable_context_detection)
             xss_results = xss_scanner.scan()
-            print(f"[GUI] XSS scan found {len(xss_results)} vulnerabilities")
             results.extend(xss_results)
         
-        print(f"[GUI] Total vulnerabilities found: {len(results)}")
+        # Check for extracted data (SQL Injection)
+        extracted_data_list = [v.get('extracted_data') for v in results if 'extracted_data' in v]
+        
+        # Check for context analysis (XSS)
+        context_analysis_list = [v.get('context') for v in results if 'context' in v]
         
         # Store results
         scan_results[scan_id] = {
             'url': url,
             'scan_type': scan_type,
+            'extraction_enabled': enable_extraction,
+            'context_detection_enabled': enable_context_detection,
             'timestamp': datetime.now().isoformat(),
             'vulnerabilities': results,
             'total_vulnerabilities': len(results),
             'high_severity': len([v for v in results if v.get('severity') == 'High']),
             'medium_severity': len([v for v in results if v.get('severity') == 'Medium']),
-            'low_severity': len([v for v in results if v.get('severity') == 'Low'])
+            'low_severity': len([v for v in results if v.get('severity') == 'Low']),
+            'critical_severity': len([v for v in results if v.get('severity') == 'Critical']),
+            'extracted_data': extracted_data_list if extracted_data_list else None,
+            'context_analysis': context_analysis_list if context_analysis_list else None
         }
         
         # Update status
@@ -148,13 +190,12 @@ def run_scan(scan_id, url, scan_type):
             'message': f'Scan completed. Found {len(results)} vulnerability(ies).'
         })
         
-        print(f"[GUI] Scan {scan_id} completed successfully")
+        print(f"\n{'='*60}")
+        print(f"[COMPLETE] Scan finished: {len(results)} vulnerability(ies) found")
+        print(f"{'='*60}\n")
         
     except Exception as e:
-        import traceback
-        error_trace = traceback.format_exc()
-        print(f"[GUI ERROR] Scan failed: {str(e)}")
-        print(f"[GUI ERROR] Traceback:\n{error_trace}")
+        print(f"\n[ERROR] Scan failed: {str(e)}")
         
         scan_status[scan_id].update({
             'status': 'error',

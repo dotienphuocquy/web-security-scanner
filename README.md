@@ -16,7 +16,10 @@
   - Time-based Blind SQL Injection
   - Reflected XSS
   - Stored XSS
-- 📊 **Báo cáo chi tiết**: Export HTML và JSON
+- � **Tính năng nâng cao**:
+  - **SQL Injection**: Database fingerprinting, binary search extraction, data extraction (user/database name)
+  - **XSS**: Context-aware detection (7 contexts), context-specific payloads, visual payload highlighting
+- 📊 **Báo cáo chi tiết**: Export HTML và JSON với evidence và remediation
 - 🖥️ **Giao diện đa dạng**: CLI và Web GUI
 - 🎓 **Ứng dụng demo**: Web app có lỗ hổng để thực hành
 
@@ -181,6 +184,29 @@ Truy cập: `http://127.0.0.1:5000`
 - 📈 Statistics và charts
 - 📥 Download báo cáo HTML/JSON
 - 🎯 Scan history
+
+**Workflow Demo đầy đủ:**
+
+1. **Terminal 1 - Start Vulnerable App:**
+   ```bash
+   cd vulnerable_app
+   python app.py
+   # Chạy trên: http://127.0.0.1:8080
+   ```
+
+2. **Terminal 2 - Start GUI:**
+   ```bash
+   python main.py --gui
+   # Hoặc: cd gui && python app.py
+   # Truy cập: http://127.0.0.1:5000
+   ```
+
+3. **Trên Web GUI:**
+   - Nhập URL: `http://127.0.0.1:8080`
+   - Chọn Scan Type: `All` hoặc `SQL Injection` / `XSS`
+   - Click "Start Scan"
+   - Xem kết quả real-time
+   - Download report khi hoàn tất
 
 ---
 

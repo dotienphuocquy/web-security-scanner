@@ -48,6 +48,14 @@ def main():
                         help='Output file for report',
                         default='report')
     
+    parser.add_argument('--extract',
+                        action='store_true',
+                        help='Enable data extraction for Blind SQLi (extracts user & database)')
+    
+    parser.add_argument('--context-detect',
+                        action='store_true',
+                        help='Enable context detection for XSS (detects injection context)')
+    
     parser.add_argument('--gui',
                         action='store_true',
                         help='Launch web-based GUI interface')
@@ -72,13 +80,17 @@ def main():
         
         if args.type in ['sqli', 'all']:
             print(f"{Fore.CYAN}[*] Running SQL Injection scan...{Style.RESET_ALL}")
-            sqli_scanner = SQLInjectionScanner(args.url)
+            if args.extract:
+                print(f"{Fore.YELLOW}[!] Data extraction enabled (PoC mode){Style.RESET_ALL}")
+            sqli_scanner = SQLInjectionScanner(args.url, enable_extraction=args.extract)
             sqli_results = sqli_scanner.scan()
             results.extend(sqli_results)
         
         if args.type in ['xss', 'all']:
             print(f"{Fore.CYAN}[*] Running XSS scan...{Style.RESET_ALL}")
-            xss_scanner = XSSScanner(args.url)
+            if args.context_detect:
+                print(f"{Fore.YELLOW}[!] Context detection enabled{Style.RESET_ALL}")
+            xss_scanner = XSSScanner(args.url, enable_context_detection=args.context_detect)
             xss_results = xss_scanner.scan()
             results.extend(xss_results)
         
@@ -92,6 +104,8 @@ def main():
         parser.print_help()
         print(f"\n{Fore.YELLOW}Examples:{Style.RESET_ALL}")
         print(f"  python main.py -u http://example.com -t all")
+        print(f"  python main.py -u http://example.com -t sqli --extract")
+        print(f"  python main.py -u http://example.com -t xss --context-detect")
         print(f"  python main.py -u http://example.com -t sqli -o sqli_report")
         print(f"  python main.py --gui")
 
