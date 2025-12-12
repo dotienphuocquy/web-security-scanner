@@ -550,7 +550,7 @@ XSS_MAX_PAYLOADS = 15
 
 ## 🤝 Contributing
 
-Contributions are welcome! 
+Contributions are welcome!
 
 ### Cách contribute:
 1. Fork repository
@@ -581,54 +581,6 @@ Contributions are welcome!
 
 ---
 
-## 📧 Contact & Support
-
-**Author:** Security Research Team  
-**Email:** security@example.com  
-**GitHub:** https://github.com/yourusername/web-security-scanner
-
-### Support
-- 📖 Documentation: README.md
-- 🐛 Bug reports: GitHub Issues
-- 💡 Feature requests: GitHub Discussions
-
----
-
-## 📜 License
-
-MIT License
-
-Copyright (c) 2025 Web Security Scanner
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
----
-
-## 🌟 Acknowledgments
-
-- OWASP Foundation for security guidelines
-- PortSwigger Web Security Academy
-- Python community for excellent libraries
-- Security researchers worldwide
-
----
-
 ## 📚 References
 
 1. **OWASP Top 10**: https://owasp.org/www-project-top-ten/
@@ -637,11 +589,3 @@ SOFTWARE.
 4. **Web Security Testing Guide**: https://owasp.org/www-project-web-security-testing-guide/
 
 ---
-
-<div align="center">
-
-**⚡ Made with ❤️ for Security Testing**
-
-**🔒 Stay Safe, Test Responsibly 🔒**
-
-</div>
