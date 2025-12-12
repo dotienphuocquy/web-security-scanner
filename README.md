@@ -210,7 +210,7 @@ Truy cập: `http://127.0.0.1:5000`
 
 ---
 
-## 🎯 Demo với Vulnerable App
+## Demo với Vulnerable App
 
 ### Khởi động Vulnerable Application
 
@@ -228,56 +228,21 @@ App sẽ chạy tại: `http://127.0.0.1:8080`
 | admin    | admin123    | admin |
 | user1    | password123 | user  |
 
-### Các lỗ hổng có sẵn
+### Các lỗ hổng có sẵn (6 lỗ hổng)
 
-#### 1. SQL Injection - Login Page
+**1. SQL Injection (4 endpoints)**
+- Login: `/login` - Try: `admin' OR '1'='1`
+- Search: `/search?q=' OR '1'='1`
+- Profile: `/profile?id=1 UNION SELECT 1,2,3,4,5`
+- Posts List: `/posts?author=' OR '1'='1`
 
-**URL:** `http://127.0.0.1:8080/login`
+**2. Reflected XSS (1 endpoint)**
+- Search: `/search?q=<script>alert('XSS')</script>`
 
-**Test payload:**
-```
-Username: admin' OR '1'='1
-Password: anything
-```
+**3. Stored XSS (1 endpoint)**
+- Comments: Post comment with `<img src=x onerror=alert('XSS')>`
 
-**Kết quả:** Bypass authentication thành công
-
-#### 2. SQL Injection - Search
-
-**URL:** `http://127.0.0.1:8080/search?q=test`
-
-**Test payload:**
-```
-?q=' OR '1'='1
-```
-
-#### 3. SQL Injection - Profile
-
-**URL:** `http://127.0.0.1:8080/profile?id=1`
-
-**Test payload:**
-```
-?id=1 UNION SELECT 1,2,3,4,5
-```
-
-#### 4. Reflected XSS - Search
-
-**URL:** `http://127.0.0.1:8080/search?q=test`
-
-**Test payload:**
-```
-?q=<script>alert('XSS')</script>
-```
-
-#### 5. Stored XSS - Comments
-
-**URL:** `http://127.0.0.1:8080/post/1`
-
-**Test payload trong comment:**
-```html
-<img src=x onerror=alert('XSS')>
-<script>alert(document.cookie)</script>
-```
+Chi tiết: [vulnerable_app/README.md](vulnerable_app/README.md)
 
 ### Scan Vulnerable App
 

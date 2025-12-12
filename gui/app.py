@@ -144,7 +144,7 @@ def run_scan(scan_id, url, scan_type, enable_extraction=False, enable_context_de
                 'message': 'Running SQL Injection scan...' + (' (with data extraction)' if enable_extraction else '')
             })
             
-            sqli_scanner = SQLInjectionScanner(url, enable_advanced=enable_extraction)
+            sqli_scanner = SQLInjectionScanner(url, enable_extraction=enable_extraction)
             sqli_results = sqli_scanner.scan()
             results.extend(sqli_results)
         

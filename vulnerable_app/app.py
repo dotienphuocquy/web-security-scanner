@@ -163,6 +163,10 @@ def view_post(post_id):
     cursor.execute("SELECT * FROM posts WHERE id=?", (post_id,))
     post = cursor.fetchone()
     
+    if not post:
+        conn.close()
+        return render_template('vulnerable_post.html', post=None, comments=[], error="Post not found")
+    
     # Get comments
     cursor.execute("SELECT * FROM comments WHERE post_id=?", (post_id,))
     comments = cursor.fetchall()
@@ -204,28 +208,41 @@ def dashboard():
 
 @app.route('/profile')
 def profile():
-    """User profile - VULNERABLE to SQL Injection"""
-    user_id = request.args.get('id', '1')
-    
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    
-    # VULNERABLE: SQL Injection
-    query = f"SELECT * FROM users WHERE id={user_id}"
-    print(f"[DEBUG] Query: {query}")
-    
-    try:
-        cursor.execute(query)
-        user = cursor.fetchone()
-        error_msg = None
-    except Exception as e:
-        user = None
-        error_msg = f"Database Error: {str(e)}"  # VULNERABLE: Exposing SQL errors
-        print(f"Error: {e}")
-    
-    conn.close()
-    
-    return render_template('vulnerable_profile.html', user=user, error=error_msg)
+    """User profile - Shows logged-in user's profile, or allows SQL injection via id param"""
+    # If user is logged in, show their profile by default
+    if 'user' in session:
+        username = session.get('user')
+        
+        # Allow SQL injection testing via 'id' parameter (for scanner testing)
+        user_id = request.args.get('id')
+        
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        if user_id:
+            # VULNERABLE: SQL Injection when using id parameter
+            query = f"SELECT * FROM users WHERE id={user_id}"
+            print(f"[DEBUG] Query: {query}")
+            
+            try:
+                cursor.execute(query)
+                user = cursor.fetchone()
+                error_msg = None
+            except Exception as e:
+                user = None
+                error_msg = f"Database Error: {str(e)}"  # VULNERABLE: Exposing SQL errors
+                print(f"Error: {e}")
+        else:
+            # Show current user's profile (safe query)
+            cursor.execute("SELECT * FROM users WHERE username=?", (username,))
+            user = cursor.fetchone()
+            error_msg = None
+        
+        conn.close()
+        return render_template('vulnerable_profile.html', user=user, error=error_msg)
+    else:
+        # Not logged in - redirect to login
+        return redirect(url_for('login'))
 
 
 @app.route('/logout')
@@ -235,21 +252,52 @@ def logout():
     return redirect(url_for('index'))
 
 
+@app.route('/posts')
+def list_posts():
+    """List all posts - VULNERABLE to SQL Injection"""
+    # Get filter parameter
+    author = request.args.get('author', '')
+    
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    
+    if author:
+        # VULNERABLE: SQL Injection in WHERE clause
+        query = f"SELECT * FROM posts WHERE author='{author}'"
+        print(f"[DEBUG] Query: {query}")
+        try:
+            cursor.execute(query)
+            posts = cursor.fetchall()
+        except Exception as e:
+            # VULNERABLE: Exposing SQL errors
+            posts = []
+            error = f"SQL Error: {str(e)}"
+            conn.close()
+            return render_template('vulnerable_posts_list.html', posts=posts, error=error, author=author)
+    else:
+        cursor.execute("SELECT * FROM posts")
+        posts = cursor.fetchall()
+    
+    conn.close()
+    return render_template('vulnerable_posts_list.html', posts=posts, author=author)
+
+
 def start_vulnerable_app():
     """Start the vulnerable application"""
     init_db()
     print("\n" + "="*60)
-    print("⚠️  VULNERABLE WEB APPLICATION - FOR TESTING ONLY")
+    print("VULNERABLE WEB APPLICATION - FOR TESTING ONLY")
     print("="*60)
     print("Starting on http://127.0.0.1:8080")
     print("\nTest Credentials:")
     print("  Username: admin  | Password: admin123")
     print("  Username: user1  | Password: password123")
     print("\nVulnerabilities included:")
-    print("  ❌ SQL Injection in login, search, and profile")
-    print("  ❌ Reflected XSS in search")
-    print("  ❌ Stored XSS in comments")
-    print("\n⚠️  WARNING: DO NOT DEPLOY TO PRODUCTION!")
+    print("  - SQL Injection: Login, Search, Profile, Posts (4 endpoints)")
+    print("  - Reflected XSS: Search (1 endpoint)")
+    print("  - Stored XSS: Comments (1 endpoint)")
+    print("\nTotal: 6 vulnerabilities")
+    print("\nWARNING: DO NOT DEPLOY TO PRODUCTION!")
     print("="*60 + "\n")
     
     app.run(debug=True, host='0.0.0.0', port=8080)
