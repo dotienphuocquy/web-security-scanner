@@ -8,7 +8,7 @@ from colorama import Fore, Style
 
 class DatabaseFingerprint:
     """Database type detection"""
-    
+
     # Database-specific fingerprint queries
     FINGERPRINTS = {
         'MySQL': {
@@ -61,7 +61,7 @@ class DatabaseFingerprint:
             'functions': ['sqlite_version()', 'sqlite_', 'SUBSTR()', 'LENGTH()']
         }
     }
-    
+
     @staticmethod
     def detect_database(http_client, url, param_name, param_value, method='GET'):
         """
@@ -69,55 +69,55 @@ class DatabaseFingerprint:
         Returns: (db_type, confidence)
         """
         print(f"{Fore.CYAN}[*] Fingerprinting database...{Style.RESET_ALL}")
-        
+
         scores = {db: 0 for db in DatabaseFingerprint.FINGERPRINTS.keys()}
-        
+
         for db_type, fingerprint in DatabaseFingerprint.FINGERPRINTS.items():
             # Test database-specific queries
             for query in fingerprint['queries'][:3]:  # Test only first 3 for speed
                 payload = param_value + query
-                
+
                 try:
                     if method == 'GET':
-                        test_url = url.replace(f"{param_name}={param_value}", 
+                        test_url = url.replace(f"{param_name}={param_value}",
                                               f"{param_name}={payload}")
                         response = http_client.get(test_url)
                     else:  # POST
                         data = {param_name: payload}
                         response = http_client.post(url, data=data)
-                    
+
                     if response and response.status_code == 200:
                         response_text = response.text.lower()
-                        
+
                         # Check for database-specific keywords in response
                         for keyword in fingerprint['keywords']:
                             if keyword in response_text:
                                 scores[db_type] += 3
-                        
+
                         # Check for database-specific function names
                         for func in fingerprint['functions']:
                             if func.lower() in response_text:
                                 scores[db_type] += 1
-                        
+
                         # Check if query executed successfully (no error)
                         if len(response_text) > 100 and 'error' not in response_text:
                             scores[db_type] += 1
-                
+
                 except Exception:
                     pass
-        
+
         # Find database with highest score
         if max(scores.values()) > 0:
             detected_db = max(scores, key=scores.get)
             confidence = min(scores[detected_db] * 10, 95)  # Max 95% confidence
-            
+
             print(f"{Fore.GREEN}[✓] Database detected: {detected_db} "
                   f"(Confidence: {confidence}%){Style.RESET_ALL}")
             return detected_db, confidence
-        
+
         print(f"{Fore.YELLOW}[!] Could not determine database type{Style.RESET_ALL}")
         return None, 0
-    
+
     @staticmethod
     def get_extraction_functions(db_type):
         """Get database-specific functions for data extraction"""
@@ -173,5 +173,5 @@ class DatabaseFingerprint:
                 'comment': '-- '
             }
         }
-        
+
         return functions.get(db_type, functions['MySQL'])  # Default to MySQL

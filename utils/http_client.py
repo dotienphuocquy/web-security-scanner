@@ -12,7 +12,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 class HTTPClient:
     """HTTP client wrapper with custom headers and error handling"""
-    
+
     def __init__(self, timeout=TIMEOUT):
         self.timeout = timeout
         self.session = requests.Session()
@@ -23,7 +23,7 @@ class HTTPClient:
             'Accept-Encoding': 'gzip, deflate',
             'Connection': 'keep-alive',
         })
-    
+
     def get(self, url, params=None, allow_redirects=True):
         """Send GET request"""
         try:
@@ -37,7 +37,7 @@ class HTTPClient:
             return response
         except requests.RequestException as e:
             return None
-    
+
     def post(self, url, data=None, allow_redirects=True):
         """Send POST request"""
         try:
@@ -51,18 +51,18 @@ class HTTPClient:
             return response
         except requests.RequestException as e:
             return None
-    
+
     @staticmethod
     def parse_url(url):
         """Parse URL and return components"""
         return urlparse(url)
-    
+
     @staticmethod
     def get_params_from_url(url):
         """Extract parameters from URL"""
         parsed = urlparse(url)
         return parse_qs(parsed.query)
-    
+
     @staticmethod
     def build_url(base_url, params):
         """Build URL with parameters"""
