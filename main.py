@@ -29,39 +29,39 @@ def print_banner():
 def main():
     """Main application entry point"""
     print_banner()
-    
+
     parser = argparse.ArgumentParser(
         description='Web Security Scanner for SQL Injection and XSS vulnerabilities',
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    
-    parser.add_argument('-u', '--url', 
+
+    parser.add_argument('-u', '--url',
                         help='Target URL to scan',
                         required=False)
-    
+
     parser.add_argument('-t', '--type',
                         choices=['sqli', 'xss', 'all'],
                         default='all',
                         help='Type of scan: sqli, xss, or all (default: all)')
-    
+
     parser.add_argument('-o', '--output',
                         help='Output file for report',
                         default='report')
-    
+
     parser.add_argument('--extract',
                         action='store_true',
                         help='Enable data extraction for Blind SQLi (extracts user & database)')
-    
+
     parser.add_argument('--context-detect',
                         action='store_true',
                         help='Enable context detection for XSS (detects injection context)')
-    
+
     parser.add_argument('--gui',
                         action='store_true',
                         help='Launch web-based GUI interface')
-    
+
     args = parser.parse_args()
-    
+
     if args.gui:
         print(f"{Fore.GREEN}[*] Starting Web GUI interface...{Style.RESET_ALL}")
         from gui.app import start_gui
@@ -70,14 +70,14 @@ def main():
         print(f"{Fore.GREEN}[*] Target URL: {args.url}{Style.RESET_ALL}")
         print(f"{Fore.GREEN}[*] Scan Type: {args.type.upper()}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}[*] Starting scan...{Style.RESET_ALL}\n")
-        
+
         # Import scanners
         from scanners.sql_injection import SQLInjectionScanner
         from scanners.xss_scanner import XSSScanner
         from utils.report_generator import ReportGenerator
-        
+
         results = []
-        
+
         if args.type in ['sqli', 'all']:
             print(f"{Fore.CYAN}[*] Running SQL Injection scan...{Style.RESET_ALL}")
             if args.extract:
@@ -85,7 +85,7 @@ def main():
             sqli_scanner = SQLInjectionScanner(args.url, enable_extraction=args.extract)
             sqli_results = sqli_scanner.scan()
             results.extend(sqli_results)
-        
+
         if args.type in ['xss', 'all']:
             print(f"{Fore.CYAN}[*] Running XSS scan...{Style.RESET_ALL}")
             if args.context_detect:
@@ -93,12 +93,12 @@ def main():
             xss_scanner = XSSScanner(args.url, enable_context_detection=args.context_detect)
             xss_results = xss_scanner.scan()
             results.extend(xss_results)
-        
+
         # Generate report
         print(f"\n{Fore.GREEN}[*] Generating report...{Style.RESET_ALL}")
         report_gen = ReportGenerator()
         report_gen.generate(results, args.output)
-        
+
         print(f"{Fore.GREEN}[✓] Scan completed! Report saved to: {args.output}.html{Style.RESET_ALL}")
     else:
         parser.print_help()

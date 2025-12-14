@@ -20,7 +20,7 @@ from config import SQLI_DETECTION_TIMEOUT, SQLI_MAX_PAYLOADS
 
 class SQLInjectionScanner:
     """SQL Injection vulnerability scanner"""
-    
+
     def __init__(self, url, enable_extraction=False):
         self.url = url
         self.client = HTTPClient()
@@ -29,58 +29,58 @@ class SQLInjectionScanner:
         self.enable_extraction = enable_extraction
         self.detected_db = None
         self.db_functions = None
-    
+
     def scan(self):
         """Main scan function"""
         print(f"{Fore.CYAN}[*] Starting SQL Injection scan on: {self.url}{Style.RESET_ALL}")
-        
+
         # Check if URL is base URL (no specific page)
         parsed = urlparse(self.url)
         is_base_url = parsed.path in ['', '/']
-        
+
         urls_to_scan = [self.url]
-        
+
         # If base URL, crawl to find pages
         if is_base_url:
             print(f"{Fore.CYAN}[*] Base URL detected, crawling website...{Style.RESET_ALL}")
             crawler = WebCrawler(self.url, max_depth=2, max_pages=15)
             discovered_urls = crawler.crawl()
-            
+
             if discovered_urls:
                 important_urls = crawler.get_important_endpoints()
                 urls_to_scan = important_urls[:10]  # Limit to 10 most important
                 print(f"{Fore.GREEN}[✓] Will scan {len(urls_to_scan)} discovered page(s){Style.RESET_ALL}")
-        
+
         # Scan each URL
         for scan_url in urls_to_scan:
             self.url = scan_url
             self._scan_single_url()
-        
+
         # Print summary
         self._print_summary()
-        
+
         return self.vulnerabilities
-    
+
     def _scan_single_url(self):
         """Scan a single URL"""
         if len(self.vulnerabilities) > 0:
             print(f"\n{Fore.CYAN}[*] Scanning: {self.url}{Style.RESET_ALL}")
-        
+
         # Get parameters from URL
         params = self._get_url_parameters()
-        
+
         # Scan GET parameters
         if params:
             print(f"{Fore.YELLOW}[*] Testing GET parameters: {list(params.keys())}{Style.RESET_ALL}")
             self._scan_get_parameters(params)
-        
+
         # Scan POST forms
         forms = self._get_forms()
         if forms:
             print(f"{Fore.YELLOW}[*] Found {len(forms)} form(s), testing POST parameters...{Style.RESET_ALL}")
             for form in forms:
                 self._scan_post_form(form)
-    
+
     def _get_url_parameters(self):
         """Extract parameters from URL"""
         parsed = urlparse(self.url)
@@ -90,23 +90,23 @@ class SQLInjectionScanner:
         # Also set base URL without parameters
         self.base_url = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
         return result
-    
+
     def _get_forms(self):
         """Extract forms from the webpage"""
         try:
             response = self.client.get(self.url)
             if not response:
                 return []
-            
+
             soup = BeautifulSoup(response.text, 'html.parser')
             forms = soup.find_all('form')
-            
+
             form_details = []
             for form in forms:
                 action = form.get('action', '')
                 method = form.get('method', 'get').lower()
                 inputs = []
-                
+
                 for input_tag in form.find_all(['input', 'textarea', 'select']):
                     input_type = input_tag.get('type', 'text')
                     input_name = input_tag.get('name')
@@ -115,54 +115,54 @@ class SQLInjectionScanner:
                             'type': input_type,
                             'name': input_name
                         })
-                
+
                 if inputs:
                     form_details.append({
                         'action': action,
                         'method': method,
                         'inputs': inputs
                     })
-            
+
             return form_details
         except Exception as e:
             print(f"{Fore.RED}[!] Error parsing forms: {str(e)}{Style.RESET_ALL}")
             return []
-    
+
     def _scan_get_parameters(self, params):
         """Scan GET parameters for SQL injection"""
         for param_name, param_value in params.items():
             if param_name in self.tested_params:
                 continue
-            
+
             self.tested_params.add(param_name)
             print(f"{Fore.CYAN}  [*] Testing parameter: {param_name}{Style.RESET_ALL}")
-            
+
             # Test error-based SQL injection
             if self._test_error_based(param_name, param_value, params):
                 continue
-            
+
             # Test union-based SQL injection
             if self._test_union_based(param_name, param_value, params):
                 continue
-            
+
             # Test boolean-based SQL injection
             if self._test_boolean_based(param_name, param_value, params):
                 continue
-            
+
             # Test time-based SQL injection
             if self._test_time_based(param_name, param_value, params):
                 continue
-    
+
     def _scan_post_form(self, form):
         """Scan POST form for SQL injection"""
         action = form['action']
         method = form['method']
         inputs = form['inputs']
-        
+
         # Build form URL
         parsed = urlparse(self.url)
         base = f"{parsed.scheme}://{parsed.netloc}"
-        
+
         if action.startswith('http'):
             form_url = action
         elif action.startswith('/'):
@@ -174,39 +174,39 @@ class SQLInjectionScanner:
         else:
             # Empty action means current page
             form_url = self.url.split('?')[0]
-        
+
         print(f"{Fore.CYAN}  [*] Testing form at: {form_url}{Style.RESET_ALL}")
-        
+
         # Test each input field
         for input_field in inputs:
             if input_field['type'] in ['submit', 'button', 'hidden']:
                 continue
-            
+
             param_name = input_field['name']
             if param_name in self.tested_params:
                 continue
-            
+
             self.tested_params.add(param_name)
             print(f"{Fore.CYAN}    [*] Testing field: {param_name}{Style.RESET_ALL}")
-            
+
             # Build form data
             form_data = {}
             for inp in inputs:
                 form_data[inp['name']] = 'test'
-            
+
             # Test error-based
             if self._test_error_based_post(form_url, param_name, form_data):
                 continue
-            
+
             # Test time-based
             self._test_time_based_post(form_url, param_name, form_data)
-    
+
     def _test_error_based(self, param_name, param_value, params):
         """Test for error-based SQL injection"""
         for payload in SQLPayloads.ERROR_BASED[:20]:  # Test first 20 payloads
             test_params = params.copy()
             test_params[param_name] = payload
-            
+
             response = self._send_request(test_params)
             if response and self._check_sql_errors(response.text):
                 self._add_vulnerability(
@@ -217,21 +217,21 @@ class SQLInjectionScanner:
                     evidence="SQL error detected in response"
                 )
                 print(f"{Fore.GREEN}    [✓] Vulnerable to Error-based SQLi!{Style.RESET_ALL}")
-                
+
                 # Perform data extraction if enabled
                 if self.enable_extraction and not self.detected_db:
                     print(f"{Fore.YELLOW}[!] Attempting data extraction via Error-based SQLi...{Style.RESET_ALL}")
                     self._exploit_error_based(param_name, param_value, params, method='GET')
-                
+
                 return True
-        
+
         # Also test numeric injection for id parameters
         if param_name.lower() in ['id', 'user_id', 'post_id', 'product_id']:
             numeric_payloads = ["1'", "1\"", "1 AND 1=1", "1 AND 1=2", "1 OR 1=1"]
             for payload in numeric_payloads:
                 test_params = params.copy()
                 test_params[param_name] = payload
-                
+
                 response = self._send_request(test_params)
                 if response and self._check_sql_errors(response.text):
                     self._add_vulnerability(
@@ -243,9 +243,9 @@ class SQLInjectionScanner:
                     )
                     print(f"{Fore.GREEN}    [✓] Vulnerable to Error-based SQLi (numeric)!{Style.RESET_ALL}")
                     return True
-        
+
         return False
-    
+
     def _test_union_based(self, param_name, param_value, params):
         """Test for union-based SQL injection"""
         # Test numeric UNION for id parameters
@@ -261,7 +261,7 @@ class SQLInjectionScanner:
             for payload in numeric_union_payloads:
                 test_params = params.copy()
                 test_params[param_name] = payload
-                
+
                 response = self._send_request(test_params)
                 if response and self._check_union_success(response.text):
                     self._add_vulnerability(
@@ -273,11 +273,11 @@ class SQLInjectionScanner:
                     )
                     print(f"{Fore.GREEN}    [✓] Vulnerable to Union-based SQLi!{Style.RESET_ALL}")
                     return True
-        
+
         for payload in SQLPayloads.UNION_BASED[:10]:  # Test first 10 payloads
             test_params = params.copy()
             test_params[param_name] = payload
-            
+
             response = self._send_request(test_params)
             if response:
                 # Check for successful UNION injection indicators
@@ -291,32 +291,32 @@ class SQLInjectionScanner:
                     )
                     print(f"{Fore.GREEN}    [✓] Vulnerable to Union-based SQLi!{Style.RESET_ALL}")
                     return True
-        
+
         return False
-    
+
     def _test_boolean_based(self, param_name, param_value, params):
         """Test for boolean-based blind SQL injection"""
         # Get baseline response
         baseline_response = self._send_request(params)
         if not baseline_response:
             return False
-        
+
         baseline_length = len(baseline_response.text)
-        
+
         # Test with true condition
         true_params = params.copy()
         true_params[param_name] = param_value + SQLPayloads.BOOLEAN_BASED[0]  # AND '1'='1
         true_response = self._send_request(true_params)
-        
+
         # Test with false condition
         false_params = params.copy()
         false_params[param_name] = param_value + SQLPayloads.BOOLEAN_BASED[1]  # AND '1'='2
         false_response = self._send_request(false_params)
-        
+
         if true_response and false_response:
             true_length = len(true_response.text)
             false_length = len(false_response.text)
-            
+
             # Check if responses differ significantly
             if abs(true_length - baseline_length) < 100 and abs(true_length - false_length) > 100:
                 self._add_vulnerability(
@@ -327,25 +327,25 @@ class SQLInjectionScanner:
                     evidence=f"Response length differs: True={true_length}, False={false_length}"
                 )
                 print(f"{Fore.GREEN}    [✓] Vulnerable to Boolean-based Blind SQLi!{Style.RESET_ALL}")
-                
+
                 # Perform data extraction if enabled
                 if self.enable_extraction:
                     self._exploit_blind_sqli(param_name, param_value, params, method='GET')
-                
+
                 return True
-        
+
         return False
-    
+
     def _test_time_based(self, param_name, param_value, params):
         """Test for time-based blind SQL injection"""
         for payload in SQLPayloads.TIME_BASED[:5]:  # Test first 5 payloads
             test_params = params.copy()
             test_params[param_name] = payload
-            
+
             start_time = time.time()
             response = self._send_request(test_params)
             elapsed_time = time.time() - start_time
-            
+
             # Check if response was delayed (indicating successful time-based injection)
             if elapsed_time >= SQLI_DETECTION_TIMEOUT - 1:  # Allow 1 second tolerance
                 self._add_vulnerability(
@@ -357,15 +357,15 @@ class SQLInjectionScanner:
                 )
                 print(f"{Fore.GREEN}    [✓] Vulnerable to Time-based Blind SQLi!{Style.RESET_ALL}")
                 return True
-        
+
         return False
-    
+
     def _test_error_based_post(self, url, param_name, form_data):
         """Test POST form for error-based SQL injection"""
         for payload in SQLPayloads.ERROR_BASED[:10]:
             test_data = form_data.copy()
             test_data[param_name] = payload
-            
+
             response = self.client.post(url, data=test_data)
             if response and self._check_sql_errors(response.text):
                 self._add_vulnerability(
@@ -377,26 +377,26 @@ class SQLInjectionScanner:
                     evidence="SQL error detected in response"
                 )
                 print(f"{Fore.GREEN}      [✓] Vulnerable to Error-based SQLi (POST)!{Style.RESET_ALL}")
-                
+
                 # Perform data extraction if enabled
                 if self.enable_extraction and not self.detected_db:
                     print(f"{Fore.YELLOW}[!] Attempting data extraction via Error-based SQLi (POST)...{Style.RESET_ALL}")
                     self._exploit_error_based_post(url, param_name, form_data, method='POST')
-                
+
                 return True
-        
+
         return False
-    
+
     def _test_time_based_post(self, url, param_name, form_data):
         """Test POST form for time-based SQL injection"""
         for payload in SQLPayloads.TIME_BASED[:3]:
             test_data = form_data.copy()
             test_data[param_name] = payload
-            
+
             start_time = time.time()
             response = self.client.post(url, data=test_data)
             elapsed_time = time.time() - start_time
-            
+
             if elapsed_time >= SQLI_DETECTION_TIMEOUT - 1:
                 self._add_vulnerability(
                     vuln_type="Time-based Blind SQL Injection",
@@ -408,9 +408,9 @@ class SQLInjectionScanner:
                 )
                 print(f"{Fore.GREEN}      [✓] Vulnerable to Time-based Blind SQLi (POST)!{Style.RESET_ALL}")
                 return True
-        
+
         return False
-    
+
     def _send_request(self, params):
         """Send GET request with parameters"""
         # Use base_url if available, otherwise parse from self.url
@@ -419,19 +419,19 @@ class SQLInjectionScanner:
         else:
             parsed = urlparse(self.url)
             base = f"{parsed.scheme}://{parsed.netloc}{parsed.path}"
-        
+
         query_string = urlencode(params)
         test_url = base + '?' + query_string if query_string else base
-        
+
         return self.client.get(test_url)
-    
+
     def _check_sql_errors(self, response_text):
         """Check if response contains SQL error messages"""
         for signature in SQLPayloads.ERROR_SIGNATURES:
             if signature.lower() in response_text.lower():
                 return True
         return False
-    
+
     def _check_union_success(self, response_text):
         """Check for indicators of successful UNION injection"""
         # Look for typical database information
@@ -443,44 +443,44 @@ class SQLInjectionScanner:
             'postgres',
             'mssql',
         ]
-        
+
         for indicator in indicators:
             if re.search(indicator, response_text, re.IGNORECASE):
                 return True
         return False
-    
+
     def _exploit_blind_sqli(self, param_name, param_value, params, method='GET'):
         """Exploit Blind SQL Injection to extract data"""
         print(f"\n{Fore.YELLOW}[!] Data Extraction Mode Enabled{Style.RESET_ALL}")
-        
+
         # Step 1: Database Fingerprinting
         if not self.detected_db:
             self.detected_db, confidence = DatabaseFingerprint.detect_database(
                 self.client, self.url, param_name, param_value, method
             )
-            
+
             if self.detected_db:
                 self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
             else:
                 print(f"{Fore.YELLOW}[!] Using default MySQL functions{Style.RESET_ALL}")
                 self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
-        
+
         # Step 2: Data Extraction using Binary Search
         print(f"\n{Fore.CYAN}[*] Starting data extraction...{Style.RESET_ALL}")
-        
+
         try:
             extractor = BlindSQLInjectionExtractor(
-                self.client, 
-                self.url, 
-                param_name, 
-                param_value, 
-                method, 
+                self.client,
+                self.url,
+                param_name,
+                param_value,
+                method,
                 self.db_functions
             )
-            
+
             # Extract database info (PoC only)
             extracted_data = extractor.dump_database_info()
-            
+
             # Add to vulnerability evidence
             if extracted_data:
                 evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
@@ -488,135 +488,135 @@ class SQLInjectionScanner:
                 if self.vulnerabilities:
                     self.vulnerabilities[-1]['evidence'] += f"\n    Extracted Data: {evidence_str}"
                     self.vulnerabilities[-1]['extracted_data'] = extracted_data
-        
+
         except Exception as e:
             print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
-    
+
     def _exploit_error_based(self, param_name, param_value, params, method='GET'):
         """Exploit Error-based SQL Injection to extract data"""
         print(f"\n{Fore.YELLOW}[!] Error-Based Extraction Mode{Style.RESET_ALL}")
-        
+
         # Step 1: Database Fingerprinting
         if not self.detected_db:
             self.detected_db, confidence = DatabaseFingerprint.detect_database(
                 self.client, self.url, param_name, param_value, method
             )
-            
+
             if self.detected_db:
                 self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
                 print(f"{Fore.GREEN}[✓] Detected: {self.detected_db}{Style.RESET_ALL}")
             else:
                 self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
-        
+
         # Step 2: Quick extraction
         try:
             extracted_data = ErrorBasedExtractor.quick_extract(
-                self.client, 
-                self.url, 
+                self.client,
+                self.url,
                 param_name,
                 method
             )
-            
+
             if extracted_data:
                 # Add database type
                 extracted_data['database_type'] = self.detected_db if self.detected_db else 'MySQL (default)'
-                
+
                 # Add to last vulnerability
                 if self.vulnerabilities:
                     self.vulnerabilities[-1]['extracted_data'] = extracted_data
                     evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
                     self.vulnerabilities[-1]['evidence'] += f"\n    Extracted: {evidence_str}"
-        
+
         except Exception as e:
             print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
-    
+
     def _exploit_error_based_post(self, url, param_name, form_data, method='POST'):
         """Exploit Error-based SQL Injection (POST) to extract data"""
         print(f"\n{Fore.YELLOW}[!] Error-Based Extraction Mode (POST){Style.RESET_ALL}")
-        
+
         param_value = form_data.get(param_name, 'test')
-        
+
         # Step 1: Database Fingerprinting
         if not self.detected_db:
             self.detected_db, confidence = DatabaseFingerprint.detect_database(
                 self.client, url, param_name, param_value, 'POST'
             )
-            
+
             if self.detected_db:
                 self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
                 print(f"{Fore.GREEN}[✓] Detected: {self.detected_db}{Style.RESET_ALL}")
             else:
                 self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
-        
+
         # Step 2: Quick extraction
         try:
             extracted_data = ErrorBasedExtractor.quick_extract(
-                self.client, 
-                url, 
+                self.client,
+                url,
                 param_name,
                 'POST'
             )
-            
+
             if extracted_data:
                 # Add database type
                 extracted_data['database_type'] = self.detected_db if self.detected_db else 'MySQL (default)'
-                
+
                 # Add to last vulnerability
                 if self.vulnerabilities:
                     self.vulnerabilities[-1]['extracted_data'] = extracted_data
                     evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
                     self.vulnerabilities[-1]['evidence'] += f"\n    Extracted: {evidence_str}"
-        
+
         except Exception as e:
             print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
-    
+
     def _exploit_blind_sqli_post(self, url, param_name, form_data, method='POST'):
         """Exploit Blind SQL Injection from POST form"""
         print(f"\n{Fore.YELLOW}[!] Data Extraction Mode Enabled{Style.RESET_ALL}")
-        
+
         # Get a test value from form_data
         param_value = form_data.get(param_name, 'test')
-        
+
         # Step 1: Database Fingerprinting
         if not self.detected_db:
             # For POST, we need to adapt the fingerprinting
             self.detected_db, confidence = DatabaseFingerprint.detect_database(
                 self.client, url, param_name, param_value, method='POST'
             )
-            
+
             if self.detected_db:
                 self.db_functions = DatabaseFingerprint.get_extraction_functions(self.detected_db)
             else:
                 print(f"{Fore.YELLOW}[!] Using default MySQL functions{Style.RESET_ALL}")
                 self.db_functions = DatabaseFingerprint.get_extraction_functions('MySQL')
-        
+
         # Step 2: Data Extraction
         print(f"\n{Fore.CYAN}[*] Starting data extraction (POST method)...{Style.RESET_ALL}")
-        
+
         try:
             # Create a custom extractor for POST
             extractor = BlindSQLInjectionExtractor(
-                self.client, 
-                url, 
-                param_name, 
-                param_value, 
+                self.client,
+                url,
+                param_name,
+                param_value,
                 'POST',
                 self.db_functions
             )
-            
+
             # Extract database info
             extracted_data = extractor.dump_database_info()
-            
+
             # Add to vulnerability evidence
             if extracted_data:
                 evidence_str = " | ".join([f"{k}={v}" for k, v in extracted_data.items()])
                 if self.vulnerabilities:
                     self.vulnerabilities[-1]['evidence'] += f"\n    Extracted Data: {evidence_str}"
                     self.vulnerabilities[-1]['extracted_data'] = extracted_data
-        
+
         except Exception as e:
             print(f"{Fore.RED}[✗] Extraction failed: {e}{Style.RESET_ALL}")
-    
+
     def _add_vulnerability(self, vuln_type, param, payload, method, evidence="", url=None):
         """Add vulnerability to results"""
         vuln = {
@@ -631,13 +631,13 @@ class SQLInjectionScanner:
             'recommendation': 'Use parameterized queries or prepared statements. Validate and sanitize all user inputs.'
         }
         self.vulnerabilities.append(vuln)
-    
+
     def _print_summary(self):
         """Print scan summary"""
         print(f"\n{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
         print(f"{Fore.CYAN}SQL Injection Scan Summary{Style.RESET_ALL}")
         print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}")
-        
+
         if self.vulnerabilities:
             print(f"{Fore.RED}[!] Found {len(self.vulnerabilities)} SQL Injection vulnerability(ies):{Style.RESET_ALL}\n")
             for i, vuln in enumerate(self.vulnerabilities, 1):
@@ -648,5 +648,5 @@ class SQLInjectionScanner:
                 print(f"    Evidence: {vuln['evidence']}\n")
         else:
             print(f"{Fore.GREEN}[✓] No SQL Injection vulnerabilities found{Style.RESET_ALL}")
-        
+
         print(f"{Fore.CYAN}{'='*60}{Style.RESET_ALL}\n")

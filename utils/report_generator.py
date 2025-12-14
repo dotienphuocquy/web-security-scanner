@@ -11,36 +11,36 @@ from jinja2 import Template
 
 class ReportGenerator:
     """Generate security scan reports"""
-    
+
     def __init__(self, report_dir='reports'):
         # Convert to absolute path if relative
         if not os.path.isabs(report_dir):
             report_dir = os.path.abspath(report_dir)
-        
+
         self.report_dir = report_dir
         os.makedirs(report_dir, exist_ok=True)
         print(f"[ReportGenerator] Reports directory: {self.report_dir}")
-    
+
     def generate(self, vulnerabilities, output_name='report'):
         """Generate both HTML and JSON reports"""
         # Generate HTML report
         html_path = self._generate_html(vulnerabilities, output_name)
-        
+
         # Generate JSON report
         json_path = self._generate_json(vulnerabilities, output_name)
-        
+
         return {
             'html': html_path,
             'json': json_path
         }
-    
+
     def _generate_html(self, vulnerabilities, output_name):
         """Generate HTML report"""
         template = self._get_html_template()
-        
+
         # Calculate statistics
         stats = self._calculate_stats(vulnerabilities)
-        
+
         # Render template
         html_content = template.render(
             vulnerabilities=vulnerabilities,
@@ -48,21 +48,21 @@ class ReportGenerator:
             timestamp=datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             total_vulns=len(vulnerabilities)
         )
-        
+
         # Save to file
         output_path = os.path.join(self.report_dir, f"{output_name}.html")
         print(f"[ReportGenerator] Generating HTML report: {output_path}")
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
-        
+
         print(f"[ReportGenerator] HTML report saved successfully")
         return output_path
-    
+
     def _generate_json(self, vulnerabilities, output_name):
         """Generate JSON report"""
         stats = self._calculate_stats(vulnerabilities)
-        
+
         report_data = {
             'scan_info': {
                 'timestamp': datetime.now().isoformat(),
@@ -72,17 +72,17 @@ class ReportGenerator:
             'statistics': stats,
             'vulnerabilities': vulnerabilities
         }
-        
+
         # Save to file
         output_path = os.path.join(self.report_dir, f"{output_name}.json")
         print(f"[ReportGenerator] Generating JSON report: {output_path}")
-        
+
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(report_data, f, indent=2, ensure_ascii=False)
-        
+
         print(f"[ReportGenerator] JSON report saved successfully")
         return output_path
-    
+
     def _calculate_stats(self, vulnerabilities):
         """Calculate vulnerability statistics"""
         stats = {
@@ -95,7 +95,7 @@ class ReportGenerator:
             'xss': 0,
             'by_type': {}
         }
-        
+
         for vuln in vulnerabilities:
             # Count by severity
             severity = vuln.get('severity', 'Low').lower()
@@ -107,20 +107,20 @@ class ReportGenerator:
                 stats['medium'] += 1
             else:
                 stats['low'] += 1
-            
+
             # Count by category
             category = vuln.get('category', 'Unknown')
             if 'SQL' in category:
                 stats['sqli'] += 1
             elif 'XSS' in category:
                 stats['xss'] += 1
-            
+
             # Count by type
             vuln_type = vuln.get('type', 'Unknown')
             stats['by_type'][vuln_type] = stats['by_type'].get(vuln_type, 0) + 1
-        
+
         return stats
-    
+
     def _get_html_template(self):
         """Get HTML report template"""
         template_str = """
@@ -419,7 +419,7 @@ class ReportGenerator:
             <!-- Vulnerabilities List -->
             <div class="section">
                 <h2>🔍 Detected Vulnerabilities</h2>
-                
+
                 {% if vulnerabilities %}
                     {% for vuln in vulnerabilities %}
                     <div class="vulnerability {{ vuln.severity|lower }}">
@@ -461,7 +461,7 @@ class ReportGenerator:
                             <span class="vuln-detail-label">🎯 Context Type:</span>
                             <span class="vuln-detail-value">{{ vuln.context.context_type }} (Risk: {{ vuln.context.risk }})</span>
                         </div>
-                        
+
                         {% if vuln.context.snippet %}
                         <div class="vuln-detail">
                             <span class="vuln-detail-label">📜 Evidence Snippet:</span>
@@ -512,7 +512,7 @@ class ReportGenerator:
 </body>
 </html>
         """
-        
+
         return Template(template_str)
 
 

