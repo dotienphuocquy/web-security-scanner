@@ -16,7 +16,10 @@
   - Time-based Blind SQL Injection
   - Reflected XSS
   - Stored XSS
-- 📊 **Báo cáo chi tiết**: Export HTML và JSON
+- � **Tính năng nâng cao**:
+  - **SQL Injection**: Database fingerprinting, binary search extraction, data extraction (user/database name)
+  - **XSS**: Context-aware detection (7 contexts), context-specific payloads, visual payload highlighting
+- 📊 **Báo cáo chi tiết**: Export HTML và JSON với evidence và remediation
 - 🖥️ **Giao diện đa dạng**: CLI và Web GUI
 - 🎓 **Ứng dụng demo**: Web app có lỗ hổng để thực hành
 
@@ -182,9 +185,32 @@ Truy cập: `http://127.0.0.1:5000`
 - 📥 Download báo cáo HTML/JSON
 - 🎯 Scan history
 
+**Workflow Demo đầy đủ:**
+
+1. **Terminal 1 - Start Vulnerable App:**
+   ```bash
+   cd vulnerable_app
+   python app.py
+   # Chạy trên: http://127.0.0.1:8080
+   ```
+
+2. **Terminal 2 - Start GUI:**
+   ```bash
+   python main.py --gui
+   # Hoặc: cd gui && python app.py
+   # Truy cập: http://127.0.0.1:5000
+   ```
+
+3. **Trên Web GUI:**
+   - Nhập URL: `http://127.0.0.1:8080`
+   - Chọn Scan Type: `All` hoặc `SQL Injection` / `XSS`
+   - Click "Start Scan"
+   - Xem kết quả real-time
+   - Download report khi hoàn tất
+
 ---
 
-## 🎯 Demo với Vulnerable App
+## Demo với Vulnerable App
 
 ### Khởi động Vulnerable Application
 
@@ -202,56 +228,21 @@ App sẽ chạy tại: `http://127.0.0.1:8080`
 | admin    | admin123    | admin |
 | user1    | password123 | user  |
 
-### Các lỗ hổng có sẵn
+### Các lỗ hổng có sẵn (6 lỗ hổng)
 
-#### 1. SQL Injection - Login Page
+**1. SQL Injection (4 endpoints)**
+- Login: `/login` - Try: `admin' OR '1'='1`
+- Search: `/search?q=' OR '1'='1`
+- Profile: `/profile?id=1 UNION SELECT 1,2,3,4,5`
+- Posts List: `/posts?author=' OR '1'='1`
 
-**URL:** `http://127.0.0.1:8080/login`
+**2. Reflected XSS (1 endpoint)**
+- Search: `/search?q=<script>alert('XSS')</script>`
 
-**Test payload:**
-```
-Username: admin' OR '1'='1
-Password: anything
-```
+**3. Stored XSS (1 endpoint)**
+- Comments: Post comment with `<img src=x onerror=alert('XSS')>`
 
-**Kết quả:** Bypass authentication thành công
-
-#### 2. SQL Injection - Search
-
-**URL:** `http://127.0.0.1:8080/search?q=test`
-
-**Test payload:**
-```
-?q=' OR '1'='1
-```
-
-#### 3. SQL Injection - Profile
-
-**URL:** `http://127.0.0.1:8080/profile?id=1`
-
-**Test payload:**
-```
-?id=1 UNION SELECT 1,2,3,4,5
-```
-
-#### 4. Reflected XSS - Search
-
-**URL:** `http://127.0.0.1:8080/search?q=test`
-
-**Test payload:**
-```
-?q=<script>alert('XSS')</script>
-```
-
-#### 5. Stored XSS - Comments
-
-**URL:** `http://127.0.0.1:8080/post/1`
-
-**Test payload trong comment:**
-```html
-<img src=x onerror=alert('XSS')>
-<script>alert(document.cookie)</script>
-```
+Chi tiết: [vulnerable_app/README.md](vulnerable_app/README.md)
 
 ### Scan Vulnerable App
 
@@ -524,7 +515,7 @@ XSS_MAX_PAYLOADS = 15
 
 ## 🤝 Contributing
 
-Contributions are welcome! 
+Contributions are welcome!
 
 ### Cách contribute:
 1. Fork repository
@@ -555,54 +546,6 @@ Contributions are welcome!
 
 ---
 
-## 📧 Contact & Support
-
-**Author:** Security Research Team  
-**Email:** security@example.com  
-**GitHub:** https://github.com/yourusername/web-security-scanner
-
-### Support
-- 📖 Documentation: README.md
-- 🐛 Bug reports: GitHub Issues
-- 💡 Feature requests: GitHub Discussions
-
----
-
-## 📜 License
-
-MIT License
-
-Copyright (c) 2025 Web Security Scanner
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
----
-
-## 🌟 Acknowledgments
-
-- OWASP Foundation for security guidelines
-- PortSwigger Web Security Academy
-- Python community for excellent libraries
-- Security researchers worldwide
-
----
-
 ## 📚 References
 
 1. **OWASP Top 10**: https://owasp.org/www-project-top-ten/
@@ -611,11 +554,3 @@ SOFTWARE.
 4. **Web Security Testing Guide**: https://owasp.org/www-project-web-security-testing-guide/
 
 ---
-
-<div align="center">
-
-**⚡ Made with ❤️ for Security Testing**
-
-**🔒 Stay Safe, Test Responsibly 🔒**
-
-</div>

@@ -13,8 +13,13 @@ class ReportGenerator:
     """Generate security scan reports"""
     
     def __init__(self, report_dir='reports'):
+        # Convert to absolute path if relative
+        if not os.path.isabs(report_dir):
+            report_dir = os.path.abspath(report_dir)
+        
         self.report_dir = report_dir
         os.makedirs(report_dir, exist_ok=True)
+        print(f"[ReportGenerator] Reports directory: {self.report_dir}")
     
     def generate(self, vulnerabilities, output_name='report'):
         """Generate both HTML and JSON reports"""
@@ -46,9 +51,12 @@ class ReportGenerator:
         
         # Save to file
         output_path = os.path.join(self.report_dir, f"{output_name}.html")
+        print(f"[ReportGenerator] Generating HTML report: {output_path}")
+        
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write(html_content)
         
+        print(f"[ReportGenerator] HTML report saved successfully")
         return output_path
     
     def _generate_json(self, vulnerabilities, output_name):
@@ -67,15 +75,19 @@ class ReportGenerator:
         
         # Save to file
         output_path = os.path.join(self.report_dir, f"{output_name}.json")
+        print(f"[ReportGenerator] Generating JSON report: {output_path}")
+        
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(report_data, f, indent=2, ensure_ascii=False)
         
+        print(f"[ReportGenerator] JSON report saved successfully")
         return output_path
     
     def _calculate_stats(self, vulnerabilities):
         """Calculate vulnerability statistics"""
         stats = {
             'total': len(vulnerabilities),
+            'critical': 0,
             'high': 0,
             'medium': 0,
             'low': 0,
@@ -87,7 +99,9 @@ class ReportGenerator:
         for vuln in vulnerabilities:
             # Count by severity
             severity = vuln.get('severity', 'Low').lower()
-            if severity == 'high':
+            if severity == 'critical':
+                stats['critical'] += 1
+            elif severity == 'high':
                 stats['high'] += 1
             elif severity == 'medium':
                 stats['medium'] += 1
@@ -183,6 +197,10 @@ class ReportGenerator:
             background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
         }
 
+        .stat-box.critical {
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
+        }
+
         .stat-box.high {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
@@ -225,6 +243,10 @@ class ReportGenerator:
             margin-bottom: 25px;
             border-radius: 8px;
             box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        .vulnerability.critical {
+            border-left-color: #dc2626;
         }
 
         .vulnerability.high {
@@ -371,6 +393,12 @@ class ReportGenerator:
                         <div class="stat-number">{{ stats.total }}</div>
                         <div class="stat-label">Total Vulnerabilities</div>
                     </div>
+                    {% if stats.critical > 0 %}
+                    <div class="stat-box critical">
+                        <div class="stat-number">{{ stats.critical }}</div>
+                        <div class="stat-label">Critical Severity</div>
+                    </div>
+                    {% endif %}
                     <div class="stat-box high">
                         <div class="stat-number">{{ stats.high }}</div>
                         <div class="stat-label">High Severity</div>
@@ -379,10 +407,12 @@ class ReportGenerator:
                         <div class="stat-number">{{ stats.medium }}</div>
                         <div class="stat-label">Medium Severity</div>
                     </div>
+                    {% if stats.low > 0 %}
                     <div class="stat-box low">
                         <div class="stat-number">{{ stats.low }}</div>
                         <div class="stat-label">Low Severity</div>
                     </div>
+                    {% endif %}
                 </div>
             </div>
 
@@ -425,6 +455,35 @@ class ReportGenerator:
                             <span class="vuln-detail-label">💉 Payload:</span>
                             <div class="payload-box">{{ vuln.payload }}</div>
                         </div>
+
+                        {% if vuln.context %}
+                        <div class="vuln-detail">
+                            <span class="vuln-detail-label">🎯 Context Type:</span>
+                            <span class="vuln-detail-value">{{ vuln.context.context_type }} (Risk: {{ vuln.context.risk }})</span>
+                        </div>
+                        
+                        {% if vuln.context.snippet %}
+                        <div class="vuln-detail">
+                            <span class="vuln-detail-label">📜 Evidence Snippet:</span>
+                            <div class="payload-box">{{ vuln.context.snippet }}</div>
+                        </div>
+                        {% endif %}
+                        {% endif %}
+
+                        {% if vuln.extracted_data %}
+                        <div class="vuln-detail" style="background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 10px 0;">
+                            <span class="vuln-detail-label">🔓 Extracted Data:</span>
+                            {% if vuln.extracted_data.database_type %}
+                            <div style="margin-top: 8px;"><strong>Database:</strong> {{ vuln.extracted_data.database_type }}</div>
+                            {% endif %}
+                            {% if vuln.extracted_data.user %}
+                            <div><strong>User:</strong> {{ vuln.extracted_data.user }}</div>
+                            {% endif %}
+                            {% if vuln.extracted_data.database %}
+                            <div><strong>Database Name:</strong> {{ vuln.extracted_data.database }}</div>
+                            {% endif %}
+                        </div>
+                        {% endif %}
 
                         <div class="recommendation-box">
                             <strong>💡 Recommendation:</strong><br>
